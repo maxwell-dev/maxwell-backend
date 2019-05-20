@@ -1,0 +1,12 @@
+{application, maxwell_backend,
+  [{description, "Backend of maxwell project."},
+    {vsn, "0.1.0"},
+    {registered, []},
+    {mod, {maxwell_backend_app, []}},
+    {applications, [kernel, stdlib, lager, maxwell_server, maxwell_client]},
+    {env, []},
+    {modules, []},
+    {maintainers, []},
+    {licenses, ["Apache 2.0"]},
+    {links, []}
+  ]}.
