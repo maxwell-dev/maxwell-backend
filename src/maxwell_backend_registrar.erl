@@ -82,12 +82,12 @@ code_change(_OldVsn, State, _Extra) ->
 %%% Internal functions
 %%%===================================================================
 on_connected(State) ->
-  register2(State).
+  register(State).
 
 on_disconnected(State) ->
   State#state{registered = false}.
 
-register2(State) ->
+register(State) ->
   Req = #register_backend_req_t{endpoint = build_public_endpoint()},
   lager:info("Registering backend: ~p", [Req]),
   Rep = maxwell_backend_master_connector:send(Req, 5000),
