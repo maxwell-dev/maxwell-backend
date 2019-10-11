@@ -3,7 +3,15 @@
     {vsn, "0.1.0"},
     {registered, []},
     {mod, {maxwell_backend_app, []}},
-    {applications, [kernel, stdlib, lager, maxwell_server, maxwell_client]},
+    {applications, [
+      kernel, 
+      stdlib, 
+      lager, 
+      maxwell_server, 
+      maxwell_client, 
+      maxwell_store, 
+      maxwell_ip_resolver
+    ]},
     {env, []},
     {modules, []},
     {maintainers, []},

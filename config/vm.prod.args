@@ -1,5 +1,4 @@
 -public_ip 114.246.96.68
--node_id 20000
 
 ## Name of the node
 -sname maxwell-backend@localhost

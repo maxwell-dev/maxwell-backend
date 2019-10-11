@@ -36,6 +36,8 @@ start(_StartType, _StartArgs) ->
   {ok, _} = application:ensure_all_started(lager),
   {ok, _} = application:ensure_all_started(maxwell_client),
   {ok, _} = application:ensure_all_started(maxwell_server),
+  {ok, _} = application:ensure_all_started(maxwell_store),
+  {ok, _} = application:ensure_all_started(maxwell_ip_resolver),
   {ok, _} = maxwell_backend_sup:start_link().
 
 %%--------------------------------------------------------------------
