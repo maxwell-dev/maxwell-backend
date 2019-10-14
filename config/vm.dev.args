@@ -1,7 +1,5 @@
--public_ip 114.246.96.68
-
 ## Name of the node
--sname maxwell-backend
+-sname maxwell-backend@localhost
 
 ## Cookie for distributed erlang
 -setcookie nocookie
