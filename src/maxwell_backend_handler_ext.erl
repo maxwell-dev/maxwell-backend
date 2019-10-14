@@ -47,7 +47,7 @@ init_state() ->
     pending_pull_reqs = dict:new()
   }.
 
-handle2(#push_req_t{topic = Topic, value = Value, ref = Ref}, State) ->
+handle2(#push_req_t{topic = Topic, value = Value, ref = Ref} = Req, State) ->
   {StorePid, State2} = ensure_store_started(Topic, State),
   ok = maxwell_store_topic_owner:put_values(StorePid, [Value]),
   reply(#push_rep_t{ref = Ref}, State2);

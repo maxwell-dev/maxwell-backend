@@ -9,11 +9,9 @@ compile:
 	${REBAR} compile
 
 release-dev: compile
-	bin/ensure_ip_resolved.sh
 	${REBAR} release -n maxwell_backend_dev
 
 release-prod: compile
-	bin/ensure_ip_resolved.sh
 	${REBAR} release -n maxwell_backend_prod
 
 run: release-dev
