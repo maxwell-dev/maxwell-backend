@@ -93,7 +93,8 @@ handle_info(?ON_CONNECTED_CMD(Pid), State) ->
 handle_info(?ON_DISCONNECTED_CMD(Pid), State) ->
   lager:debug("ON_DISCONNECTED_CMD: pid: ~p", [Pid]),
   {noreply, on_disconnected(State)};
-handle_info({'DOWN', _ConnRef, process, _ConnPid, _Reason}, State) ->
+handle_info({'DOWN', _ConnRef, process, ConnPid, Reason}, State) ->
+  lager:debug("Conn was down: pid: ~p, reason: ~p", [ConnPid, Reason]),
   {noreply, fetch_conn(State)};
 handle_info(Info, State) ->
   lager:error("Recevied unknown info: ~p", [Info]),
@@ -129,7 +130,7 @@ fetch_conn(State) ->
 release_conn(State) ->
   case State#state.conn_pid =/= undefined of
     true -> 
-      maxwell_client_conn:stop(State#state.conn_pid),
+      catch maxwell_client_conn:stop(State#state.conn_pid),
       erlang:demonitor(State#state.conn_ref),
       State#state{conn_ref = undefined, conn_pid = undefined};
     false -> State

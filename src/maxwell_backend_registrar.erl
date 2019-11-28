@@ -106,9 +106,8 @@ handle_response({error, {_, _}} = Error, State) ->
   State#state{registered = false}.
 
 build_public_endpoint() ->
-  io_lib:format(
-    "~p:~p", [maxwell_ip_resolver:resolve(), maxwell_server_config:get_port()]
-  ).
+  {ok, Ip} = maxwell_ip_resolver:resolve(),
+  io_lib:format("~p:~p", [Ip, maxwell_server_config:get_port()]).
 
 send_cmd(Cmd, DelayMS) ->
   erlang:send_after(DelayMS, self(), Cmd).

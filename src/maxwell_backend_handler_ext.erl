@@ -17,12 +17,11 @@
   terminate/2
 ]).
 
--define(SEND_CMD(Msg), {'$send', Msg}).
-
 -record(state, {
-  topic_stores,
-  store_topics,
-  pending_pull_reqs
+  key_pushers,
+  pusher_keys,
+  key_pullers,
+  puller_keys
 }).
 
 %%%===================================================================
@@ -42,80 +41,74 @@ terminate(_Reason, _State) ->
 %%%===================================================================
 init_state() ->
   #state{
-    topic_stores = dict:new(), 
-    store_topics = dict:new(), 
-    pending_pull_reqs = dict:new()
+    key_pullers = dict:new(), 
+    puller_keys = dict:new(), 
+    key_pushers = dict:new(),
+    pusher_keys = dict:new()
   }.
 
-handle2(#push_req_t{topic = Topic, value = Value, ref = Ref}, State) ->
-  {StorePid, State2} = ensure_store_started(Topic, State),
-  ok = maxwell_store_topic_owner:put_values(StorePid, [Value]),
-  reply(#push_rep_t{ref = Ref}, State2);
+handle2(#push_req_t{topic = Topic} = Req , State) ->
+  {PusherPid, State2} = ensure_pusher_started(Topic, State),
+  maxwell_backend_pusher:push(PusherPid, Req),
+  noreply(State2);
 
-handle2(#pull_req_t{
-  topic = Topic, offset = Offset, limit = Limit, ref = Ref
-} = PullReq, State) ->
-  {StorePid, State2} = ensure_store_started(Topic, State),
-  Entries = maxwell_store_topic_owner:get_from(StorePid, Offset, Limit),
-  case erlang:length(Entries) > 0 of
-    true ->
-      send(#pull_rep_t{msgs = build_msgs(Entries), ref = Ref}),
-      noreply(State2#state{
-        pending_pull_reqs = dict:store(
-          Topic, undefined, State2#state.pending_pull_reqs
-        )
-      });
-    false ->
-      noreply(State2#state{
-        pending_pull_reqs = dict:store(
-          Topic, PullReq, State2#state.pending_pull_reqs
-        )
-      })
-  end;
+handle2(#push_rep_t{} = Rep , State) ->
+  reply(Rep, State);
 
-handle2(?MAXWELL_STORE_NOTIFY_CMD(Topic, MaxOffset), State) ->
-  lager:debug("~p", [?MAXWELL_STORE_NOTIFY_CMD(Topic, MaxOffset)]),
-  noreply(notify(Topic, State));
+handle2(#pull_req_t{topic = Topic, puller = PullerId} = Req, State) ->
+  {PullerPid, State2} = ensure_puller_started(Topic, PullerId, State),
+  maxwell_backend_puller:pull(PullerPid, Req),
+  noreply(State2);
 
-handle2({'DOWN', StoreRef, process, _StorePid, Reason}, State) ->
-  lager:info(
-    "Store was down: state: ~p, reason: ~p", [State, Reason]
-  ),
-  noreply(erase_store_by_ref(StoreRef, State)).
+handle2(#pull_rep_t{} = Rep , State) ->
+  reply(Rep, State);
 
-ensure_store_started(Topic, State) ->
-  case dict:find(Topic, State#state.topic_stores) of
-    {ok, {_, StorePid}} -> {StorePid, State};
-    error -> start_store(Topic, State)
+handle2({'DOWN', Ref, process, _Pid, Reason}, State) ->
+  lager:info("Pusher or Puller was down: state: ~p, reason: ~p", [State, Reason]),
+  noreply(erase_puller_by_ref(Ref, erase_pusher_by_ref(Ref, State))).
+
+ensure_pusher_started(Topic, State) ->
+  case dict:find(Topic, State#state.key_pushers) of
+    {ok, {_, PusherPid}} -> {PusherPid, State};
+    error -> start_pusher(Topic, State)
   end.
 
-start_store(Topic, State) ->
-  {ok, Pid} = maxwell_store_topic_owner:ensure_started(Topic),
+start_pusher(Topic, State) ->
+  {ok, Pid} = maxwell_backend_pusher_sup:start_child(Topic, self()),
   Ref = erlang:monitor(process, Pid),
-  TopicStores = dict:store(Topic, {Ref, Pid}, State#state.topic_stores),
-  StoreTopics = dict:store(Ref, Topic, State#state.store_topics),
-  {Pid, State#state{topic_stores = TopicStores, store_topics = StoreTopics}}.
+  KeyPushers = dict:store(Topic, {Ref, Pid}, State#state.key_pushers),
+  PusherKeys = dict:store(Ref, Topic, State#state.pusher_keys),
+  {Pid, State#state{key_pushers = KeyPushers, pusher_keys = PusherKeys}}.
 
-erase_store_by_ref(Ref, State) ->
-  case dict:find(Ref, State#state.store_topics) of
+erase_pusher_by_ref(Ref, State) ->
+  case dict:find(Ref, State#state.pusher_keys) of
     {ok, Topic} -> 
-      StoreTopics = dict:erase(Ref, State#state.store_topics),
-      TopicStores = dict:erase(Topic, State#state.topic_stores),
-      State#state{topic_stores = TopicStores, store_topics = StoreTopics};
+      PusherKeys = dict:erase(Ref, State#state.pusher_keys),
+      KeyPushers = dict:erase(Topic, State#state.key_pushers),
+      State#state{key_pushers = KeyPushers, pusher_keys = PusherKeys};
     error -> State
   end.
 
-build_msgs(Entries) ->
-  lists:reverse(lists:foldl(
-    fun({Offset, Value, Timestamp}, Msgs) ->
-      Msg = #msg_t{offset = Offset, value = Value, timestamp = Timestamp},
-      [Msg | Msgs]
-    end, [], Entries
-  )).
+ensure_puller_started(Topic, PullerId, State) ->
+  case dict:find({Topic, PullerId}, State#state.key_pullers) of
+    {ok, {_, PullerPid}} -> {PullerPid, State};
+    error -> start_puller(Topic, PullerId, State)
+  end.
 
-notify(Topic, State) ->
-  case dict:find(Topic, State#state.pending_pull_reqs) of
-    {ok, PullReq} -> handle2(PullReq, State);
+start_puller(Topic, PullerId, State) ->
+  {ok, Pid} = maxwell_backend_puller_sup:start_child(Topic, self(), PullerId),
+  Ref = erlang:monitor(process, Pid),
+  Key = {Topic, PullerId},
+  KeyPullers = dict:store(Key, {Ref, Pid}, State#state.key_pullers),
+  PullerKeys = dict:store(Ref, Key, State#state.puller_keys),
+  {Pid, State#state{key_pullers = KeyPullers, puller_keys = PullerKeys}}.
+
+erase_puller_by_ref(Ref, State) ->
+  case dict:find(Ref, State#state.puller_keys) of
+    {ok, Key} -> 
+      PullerKeys = dict:erase(Ref, State#state.puller_keys),
+      KeyPullers = dict:erase(Key, State#state.key_pullers),
+      State#state{key_pullers = KeyPullers, puller_keys = PullerKeys};
     error -> State
   end.
 
@@ -124,6 +117,3 @@ reply(Reply, State) ->
 
 noreply(State) ->
   {noreply, State}.
-
-send(Msg) ->
-  self() ! ?SEND_CMD(Msg).

@@ -4,46 +4,46 @@
 %%% @doc
 %%%
 %%% @end
-%%% Created : 13. Mar 2018 6:00 PM
+%%% Created : 09. Jun 2018 6:03 PM
 %%%-------------------------------------------------------------------
--module(maxwell_backend_sup).
+-module(maxwell_backend_pusher_sup).
 -behaviour(supervisor).
 
 %% API
--export([start_link/0]).
+-export([
+  start_link/0,
+  start_child/2
+]).
 
 %% Supervisor callbacks
 -export([init/1]).
 
 -define(SUP_NAME, ?MODULE).
--define(SPEC(Module, Type, Args), #{
+-define(SPEC(Module, Args), #{
   id => Module,
   start => {Module, start_link, Args},
-  restart => permanent,
-  shutdown => infinity,
-  type => Type,
+  restart => temporary,
+  shutdown => 100, % ms
+  type => worker,
   modules => [Module]}
 ).
 
 %%%===================================================================
 %%% API functions
 %%%===================================================================
-
 start_link() ->
   supervisor:start_link({local, ?SUP_NAME}, ?MODULE, []).
+
+start_child(Topic, HandlerPid) ->
+  supervisor:start_child(?SUP_NAME, [Topic, HandlerPid]).
 
 %%%===================================================================
 %%% Supervisor callbacks
 %%%===================================================================
 
 init([]) ->
-  SupFlags = #{strategy => one_for_one, intensity => 10, period => 60},
-  ChildSpecs = [
-    ?SPEC(maxwell_backend_master_connector, worker, []),
-    ?SPEC(maxwell_backend_registrar, worker, []),
-    ?SPEC(maxwell_backend_puller_sup, supervisor, []),
-    ?SPEC(maxwell_backend_pusher_sup, supervisor, [])
-  ],
+  SupFlags = #{strategy => simple_one_for_one, intensity => 0, period => 1},
+  ChildSpecs = [?SPEC(maxwell_backend_pusher, [])],
   {ok, {SupFlags, ChildSpecs}}.
 
 %%%===================================================================
