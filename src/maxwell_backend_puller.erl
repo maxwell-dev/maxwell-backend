@@ -102,7 +102,7 @@ handle_info({'DOWN', HandlerRef, process, _HandlerPid, Reason},
   lager:info(
     "Handler was down: state: ~p, reason: ~p", [State, Reason]
   ),
-  stop({{error, handler_down}, State});
+  stop({{shutdown, handler_down}, State});
 handle_info(Info, State) ->
   lager:error("Received unknkonw info: ~p", [Info]),
   noreply(State).
