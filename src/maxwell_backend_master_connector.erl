@@ -33,6 +33,7 @@
 ]).
 
 -define(SERVER, ?MODULE).
+-define(PING_CMD, '$ping').
 
 -record(state, {
   endpoints,
@@ -87,6 +88,8 @@ handle_cast(Request, State) ->
   lager:error("Recevied unknown cast: ~p", [Request]),
   {noreply, State}.
 
+handle_info(?PING_CMD, State) ->
+  {noreply, ping(State)};
 handle_info(?ON_CONNECTED_CMD(Pid), State) ->
   lager:debug("ON_CONNECTED_CMD: pid: ~p", [Pid]),
   {noreply, on_connected(State)};
@@ -178,7 +181,13 @@ notify_and_clear(Msg, State) ->
   ),
   State#state{listeners = NewListeners}.
 
+ping(State) ->
+  erlang:send_after(5000, self(), ?PING_CMD),
+  send2(#ping_req_t{}, 5000, State),
+  State.
+
 on_connected(State) ->
+  erlang:send_after(5000, self(), ?PING_CMD),
   notify_and_clear(?ON_CONNECTED_CMD(State#state.conn_pid), State).
 
 on_disconnected(State) ->
