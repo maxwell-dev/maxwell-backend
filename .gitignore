@@ -9,7 +9,6 @@ rel/example_project
 .concrete/DEV_MODE
 .DS_Store
 .rebar
-rebar.lock
 _build
 log
 data

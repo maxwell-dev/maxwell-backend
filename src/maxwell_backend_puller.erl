@@ -29,7 +29,9 @@
   code_change/3
 ]).
 
--define(PROCESS_NAME(Topic, HandlerPid, PullerId), {puller, Topic, HandlerPid}).
+-define(PROCESS_NAME(Topic, HandlerPid, PullerId),
+  {puller, Topic, HandlerPid, PullerId}
+).
 -define(VIA_PROCESS_NAME(Topic, HandlerPid, PullerId),
   {via, maxwell_server_registry, ?PROCESS_NAME(Topic, HandlerPid, PullerId)}
 ).
